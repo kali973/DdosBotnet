@@ -1,54 +1,64 @@
-import requests
-from bs4 import BeautifulSoup
+import time
 
-proxy = {"http": "http://198.199.120.102:8080", "https": "http://198.199.120.102:8080"}
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from tinydb import TinyDB
+
+# Create a new TinyDB database
+db = TinyDB('dbScrapingBeguinFr.json')
+
+options = Options()
+options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36")
+options.add_argument("--headless")
+driver = webdriver.Chrome(options=options)
+
 # URL de connexion
 login_url = "https://le-beguin.fr/login/"
 
-# Données de connexion
-data = {"username": "steeve.co@orange.fr", "password": "Tmax500_t"}
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36'}
+# Initialize a webdriver
+driver = webdriver.Chrome(chrome_options=options)
 
-try:
-    # Envoi de la requête de connexion
-    response = requests.post(login_url, data=data, headers=headers)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
-        print("login success")
-        url = "https://le-beguin.fr/member/790591/profil/show/854916"
-        try:
-            # Envoi de la requête pour accéder à la page de profil en incluant les cookies retournés lors de la connexion
-            response = requests.get(login_url, headers=headers, cookies=response.cookies)
+# Open the login page
+driver.get(login_url)
 
-            # Vérification de la réponse HTTP
-            if response.status_code == 200:
-                # Récupération du contenu HTML de la page
-                html = response.content
-                # Initialisation de BeautifulSoup avec le contenu HTML
-                soup = BeautifulSoup(html, 'html.parser')
+# Find the login form and fill in the username and password
+username_field = driver.find_element(By.NAME, "email")
+username_field.send_keys("steeve.co@orange.fr")
+password_field = driver.find_element(By.NAME, "password")
+password_field.send_keys("Tmax500_t")
+submit_button = driver.find_element(By.CSS_SELECTOR, ".btn.btn-primary")
 
-                city_element = soup.find('span', id='city')
-                if city_element:
-                    city = city_element.get_text()
-                else:
-                    city = ""
+# Submit the form
+submit_button.click()
+target_url_template_rescu = "https://le-beguin.fr/member/790591/profil/show/75374"
 
-                age_element = soup.find('span', id='age')
-                if age_element:
-                    age = age_element.get_text()
-                else:
-                    age = ""
+# Check if login was successful
+if "Welcome" in driver.page_source:
+    print("Login success")
 
-                min_age_element = soup.find('span', id='min_age')
+    # Open the target page
+    target_url_template = "https://le-beguin.fr/member/790591/profil/show/{}"
+    for i in range(417892, 838761):
+        target_url = target_url_template.format(i)
+        driver.get(target_url)
+        if "Login success" in driver.page_source:
+            # Parse the HTML with BeautifulSoup
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
 
-                if min_age_element:
-                    min_age = min_age_element.get_text()
-                else:
-                    min_age = ""
-            else:
-                print("Error: Could not scrape profile.")
-        except Exception as e:
-            print(f"Error: {e}")
-except Exception as e:
-    print(f"Error: {e}")
+            name = soup.find("li", class_="breadcrumb-item active")
+            print(name.text)
+            # Find all elements with class "col-md-6"
+            col_md_6 = soup.find_all("div", class_="col-md-6")
+
+            for element in col_md_6:
+                for li in element.find_all("li"):
+                    # Insert the data into the TinyDB
+                    db.insert({"content": li.text.encode("utf-8").decode()})
+
+    else:
+        print("Login failed")
+
+# Close the browser
+driver.quit()
