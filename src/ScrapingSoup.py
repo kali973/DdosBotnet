@@ -17,7 +17,6 @@ try:
         soup = BeautifulSoup(response.content, 'html.parser')
         print("login success")
         url = "https://le-beguin.fr/member/790591/profil/show/854916"
-
         try:
             # Envoi de la requête pour accéder à la page de profil en incluant les cookies retournés lors de la connexion
             response = requests.get(login_url, headers=headers, cookies=response.cookies)
